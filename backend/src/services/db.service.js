@@ -1,4 +1,11 @@
-const sqlite3 = require('sqlite3').verbose();
+// Dynamic require for sqlite3 to avoid crashes in serverless environments
+let sqlite3;
+try {
+    sqlite3 = require('sqlite3').verbose();
+} catch (e) {
+    console.warn('SQLite3 driver not found. Local file processing will be disabled.');
+}
+
 const { Client } = require('pg');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
@@ -63,7 +70,9 @@ const processUploadedFile = async (userId, file) => {
     const filePath = file.path;
     
     if (file.originalname.endsWith('.db') || file.originalname.endsWith('.sqlite')) {
+        if (!sqlite3) throw new Error('SQLite3 driver is not available in this environment.');
         connection = new sqlite3.Database(filePath);
+
         
         schema = await new Promise((resolve, reject) => {
             connection.all("SELECT name FROM sqlite_master WHERE type='table';", (err, tables) => {
@@ -88,8 +97,10 @@ const processUploadedFile = async (userId, file) => {
         return { schema };
         
     } else if (file.originalname.endsWith('.csv')) {
+        if (!sqlite3) throw new Error('SQLite3 driver is not available in this environment.');
         // Create an in-memory SQLite database and load the CSV
         connection = new sqlite3.Database(':memory:');
+
         
         return new Promise((resolve, reject) => {
             const results = [];
