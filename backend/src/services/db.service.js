@@ -10,6 +10,8 @@ const { Client } = require('pg');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const csv = require('csv-parser');
+const supabaseService = require('./supabase.service');
+
 
 // Store connections per user
 const userConnections = {};
@@ -62,8 +64,31 @@ const connectExternalDb = async (userId, type, credentials) => {
     }
 
     userConnections[userId] = { type, connection, schema };
+    
+    // Persist connection info for serverless restarts
+    try {
+        await supabaseService.saveConnection(userId, type, credentials, schema);
+    } catch (err) {
+        console.warn('Failed to persist connection to Supabase:', err.message);
+    }
+    
     return { schema };
 };
+
+const _ensureConnection = async (userId) => {
+    if (userConnections[userId]) return userConnections[userId];
+
+    console.log(`Connection for ${userId} not found in memory. Attempting to restore from Supabase...`);
+    const savedConn = await supabaseService.getConnection(userId);
+    
+    if (!savedConn) return null;
+
+    console.log(`Restoring ${savedConn.type} connection for user ${userId}...`);
+    // Reconnect using stored credentials
+    await connectExternalDb(userId, savedConn.type, savedConn.credentials);
+    return userConnections[userId];
+};
+
 
 const processUploadedFile = async (userId, file) => {
     let connection, schema;
@@ -137,13 +162,16 @@ const processUploadedFile = async (userId, file) => {
 };
 
 const getSchema = async (userId) => {
-    if (!userConnections[userId]) return null;
-    return userConnections[userId].schema;
+    const userConn = await _ensureConnection(userId);
+    if (!userConn) return null;
+    return userConn.schema;
 };
 
+
 const executeQuery = async (userId, sql) => {
-    const userConn = userConnections[userId];
+    const userConn = await _ensureConnection(userId);
     if (!userConn) throw new Error('No active database connection');
+
     
     // Safety check: only allow SELECT
     if (!sql.toLowerCase().trim().startsWith('select')) {

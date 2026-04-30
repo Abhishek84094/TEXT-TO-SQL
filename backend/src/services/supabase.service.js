@@ -42,7 +42,35 @@ const getHistory = async (userId) => {
     return data;
 };
 
+const saveConnection = async (userId, type, credentials, schemaText) => {
+    const { data, error } = await supabase
+        .from('user_connections')
+        .upsert({ 
+            user_id: userId, 
+            type, 
+            credentials, 
+            schema_text: schemaText,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+    
+    if (error) throw error;
+    return data;
+};
+
+const getConnection = async (userId) => {
+    const { data, error } = await supabase
+        .from('user_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+    
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is 'no rows returned'
+    return data;
+};
+
 module.exports = {
     saveQuery,
-    getHistory
+    getHistory,
+    saveConnection,
+    getConnection
 };
