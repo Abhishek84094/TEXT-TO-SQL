@@ -11,8 +11,17 @@ const connectExternalDb = async (userId, type, credentials) => {
     let connection, schema;
     
     if (type === 'postgres') {
-        connection = new Client(credentials);
-        await connection.connect();
+        const connectionConfig = {
+            ...credentials,
+            ssl: { rejectUnauthorized: false } // Required for most cloud databases
+        };
+        connection = new Client(connectionConfig);
+        try {
+            await connection.connect();
+        } catch (err) {
+            console.error('Postgres Connection Error:', err);
+            throw new Error(`Postgres Connection Failed: ${err.message}`);
+        }
         
         // Fetch schema
         const res = await connection.query(`
@@ -23,7 +32,16 @@ const connectExternalDb = async (userId, type, credentials) => {
         schema = formatSchema(res.rows, 'postgres');
         
     } else if (type === 'mysql') {
-        connection = await mysql.createConnection(credentials);
+        try {
+            const connectionConfig = {
+                ...credentials,
+                ssl: { rejectUnauthorized: false }
+            };
+            connection = await mysql.createConnection(connectionConfig);
+        } catch (err) {
+            console.error('MySQL Connection Error:', err);
+            throw new Error(`MySQL Connection Failed: ${err.message}`);
+        }
         
         const [rows] = await connection.query(`
             SELECT table_name, column_name, data_type 
