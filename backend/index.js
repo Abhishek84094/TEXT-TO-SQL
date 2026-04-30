@@ -29,17 +29,21 @@ const errorHandler = require('./src/middlewares/error.middleware');
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+    const server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
 
-server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use! Kill the other process first.`);
-    } else {
-        console.error('Server error:', err);
-    }
-});
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`Port ${PORT} is already in use! Kill the other process first.`);
+        } else {
+            console.error('Server error:', err);
+        }
+    });
 
-// Keep process alive
-server.keepAliveTimeout = 65000;
+    // Keep process alive
+    server.keepAliveTimeout = 65000;
+}
+
+module.exports = app;
